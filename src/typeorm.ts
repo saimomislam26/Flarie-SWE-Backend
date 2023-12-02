@@ -17,8 +17,11 @@ const config = {
   database: `${process.env.TYPEORM_DATABASE}`,
   entities: [Player, Reward, Coupon, PlayerCoupon],
   migrations: process.env.typeorm === 'true' ? ['migrations/*.ts'] : [],
+  cli: {
+    migrationsDir: "migrations"
+  },
   autoLoadEntities: true,
-  synchronize: false,
+  synchronize: true,
 };
 
 export default registerAs('typeorm', () => config);

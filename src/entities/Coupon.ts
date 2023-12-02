@@ -7,7 +7,8 @@ export class Coupon {
 
   @Column()
   value: string;
-
+  @Column()
+  isRedeemed: boolean;
   @ManyToOne(() => Reward)
   Reward: Reward;
 }
