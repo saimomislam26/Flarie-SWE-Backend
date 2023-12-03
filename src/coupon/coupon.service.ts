@@ -49,12 +49,20 @@ export class CouponService {
 
   async redeemCoupon(playerId: number, rewardId: number): Promise<Coupon> {
     // Check if the reward exists and is within the valid date range
+    const player = await this.playerRepository.findOne({ where: { id: playerId } });
     const reward = await this.rewardRepository.findOne({
-      where: { id: rewardId, startDate: Between(new Date(), new Date()) },
+      where: { id: rewardId },
     });
 
-    if (!reward) {
-      throw new NotFoundException('Reward not found or not within the valid date range');
+    if (!player || !reward) {
+      throw new NotFoundException('Reward not found or player not found');
+    }
+    // console.log({ reward });
+
+    //  // Check if the reward is valid within startDate and endDate
+    const currentDate = new Date();
+    if (currentDate < reward.startDate || currentDate > reward.endDate) {
+      throw new Error('Reward not available at the moment');
     }
 
     // Check if the player has reached the per-day limit
@@ -62,22 +70,33 @@ export class CouponService {
     today.setHours(0, 0, 0, 0);
 
     const dailyRedemptions = await this.playerCouponRepository.count({
-      where: { id: playerId, redeemedAt: Between(today, new Date(today.getTime() + 24 * 60 * 60 * 1000)) },
+      where: {
+        player: { id: playerId }, // Use 'player' instead of 'id'
+        redeemedAt: Between(today, new Date(today.getTime() + 24 * 60 * 60 * 1000)),
+      },
     });
+
 
     if (dailyRedemptions >= reward.perDayLimit) {
       throw new ConflictException('Player has reached the per-day redemption limit');
     }
 
     // Check if the player has reached the total limit
-    const totalRedemptions = await this.playerCouponRepository.count({ where: { id: playerId } });
-
+    const totalRedemptions = await this.playerCouponRepository.count({ where: { player: { id: playerId } } });
+    // console.log("Total Count", totalRedemptions);
     if (totalRedemptions >= reward.totalLimit) {
       throw new ConflictException('Player has reached the total redemption limit');
     }
 
     // Check if the coupon for the given reward is available
-    const coupon = await this.couponRepository.findOne({ where: { id: rewardId, isRedeemed: false } });
+    const coupon = await this.couponRepository.findOne({
+      where: {
+        Reward: { id: rewardId },
+        isRedeemed: false
+      }
+    })
+
+    // console.log("coupon", coupon);
 
     if (!coupon) {
       throw new NotFoundException('No available coupons for the specified reward');

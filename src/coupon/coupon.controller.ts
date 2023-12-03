@@ -1,56 +1,68 @@
-import { Controller, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, ParseIntPipe, Res, NotFoundException, ConflictException } from '@nestjs/common';
 import { CouponService } from './coupon.service';
+import { Response } from 'express';
 
 
-console.log(CouponService);
-
-@Controller('coupons')
+@Controller()
 export class CouponController {
   constructor(private readonly couponService: CouponService) { }
 
   @Post('create-data')
+  @HttpCode(HttpStatus.CREATED)
   async createSampleData(
     @Body('playerName') playerName: string,
     @Body('rewardName') rewardName: string,
     @Body('couponValues') couponValues: string[],
+    @Res() res: Response
   ) {
     try {
-      console.log("Hitted");
-      
       // Create a player
       const player = await this.couponService.createPlayer(playerName);
 
       // Create a reward
-      const reward = await this.couponService.createReward(rewardName, new Date(), new Date(), 3, 21);
+      const currentDate = new Date();
+      const nextWeekDate = new Date(currentDate);
+      nextWeekDate.setDate(currentDate.getDate() + 7);
+      const reward = await this.couponService.createReward(rewardName, new Date(), new Date(nextWeekDate), 3, 21);
 
       // Create coupons associated with the reward
-       const coupons = await this.couponService.createCoupons(reward.id, couponValues);
+      const coupons = await this.couponService.createCoupons(reward.id, couponValues);
 
-      // Redeem a coupon for the player
-      //  const redeemedCoupon = await this.couponService.redeemCoupon(player.id, reward.id);
-
-      return {
+      return res.status(200).json({
         player,
         reward,
         coupons,
-        //  redeemedCoupon,
-      };
+      });
     } catch (error) {
-      console.log("Error");
-      return { error: error.message };
+      if (error instanceof NotFoundException) {
+        return res.status(HttpStatus.NOT_FOUND).json({ error: error.message });
+      } else if (error instanceof ConflictException) {
+        return res.status(HttpStatus.CONFLICT).json({ error: error.message });
+      } else {
+        console.error('create error', error);
+        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
+      }
     }
   }
 
-  @Post('redeem')
+  @Post('/coupon-redeem')
   async redeemCoupon(
     @Body('playerId', ParseIntPipe) playerId: number,
     @Body('rewardId', ParseIntPipe) rewardId: number,
+    @Res() res: Response
   ) {
     try {
       const redeemedCoupon = await this.couponService.redeemCoupon(playerId, rewardId);
-      return { coupon: redeemedCoupon };
+      return res.status(200).json({ id: redeemedCoupon.id, value: redeemedCoupon.value });
     } catch (error) {
-      return { error: error.message };
+      if (error instanceof NotFoundException) {
+        return res.status(HttpStatus.NOT_FOUND).json({ error: error.message });
+      } else if (error instanceof ConflictException) {
+        return res.status(HttpStatus.CONFLICT).json({ error: error.message });
+      } else {
+        console.error('reedem error', error);
+        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
+      }
     }
   }
 }
